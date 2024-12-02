@@ -1,0 +1,56 @@
+services:
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.5.17
+    # command:
+    #   - etcd
+    #   - --name=etcd
+    #   - --data-dir=data.etcd
+    #   - --advertise-client-urls=http://etcd:2379
+    #   - --listen-client-urls=http://0.0.0.0:2379
+    #   - --initial-advertise-peer-urls=http://etcd:2380
+    #   - --listen-peer-urls=http://0.0.0.0:2380
+    #   - --initial-cluster-state=new
+    #   - --initial-cluster-token=etcd-cluster
+    environment:
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+    ports:
+      - "12379:2379"
+    #   - "2380:2380"
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+  zookeeper:
+    image: zookeeper:latest
+    # ports:
+    #   - "2181:2181"
+  consul:
+    image: consul:latest
+    # ports:
+    #   - "8500:8500"
+
+  app-etcd:
+    image: golang:1.23
+    command: go run main.go -registry=etcd://etcd:2379
+    working_dir: /app/example
+    depends_on:
+      etcd:
+        condition: service_healthy
+    volumes:
+      - ../:/app
+  app-consul:
+    image: golang:1.23
+    command: go run main.go -registry=consul://consul:8500
+    working_dir: /app/example
+    depends_on: [consul]
+    volumes:
+      - ../:/app
+  app-zookeeper:
+    image: golang:1.23
+    command: go run main.go -registry=zookeeper://zookeeper:2181
+    working_dir: /app/example
+    depends_on: [zookeeper]
+    volumes:
+      - ../:/app
