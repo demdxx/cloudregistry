@@ -207,13 +207,13 @@ func (r *Registry) SetValue(ctx context.Context, name, value string) error {
 
 // SubscribeValue subscribes to a value in the cloud registry.
 func (r *Registry) SubscribeValue(ctx context.Context, name string, val cloudregistry.ValueSetter) error {
-	ch := r.cli.Watch(ctx, name)
+	ch := r.cli.Watch(ctx, r.prefix+name)
 	return r.subscriveValue(ch, val)
 }
 
 // SubscribeValueWithPrefix subscribes to a value in the cloud registry.
 func (r *Registry) SubscribeValueWithPrefix(ctx context.Context, prefix string, val cloudregistry.ValueSetter) error {
-	ch := r.cli.Watch(ctx, prefix, clientv3.WithPrefix())
+	ch := r.cli.Watch(ctx, r.prefix+prefix, clientv3.WithPrefix())
 	return r.subscriveValue(ch, val)
 }
 
