@@ -1,6 +1,155 @@
-# cloudregistry
+# CloudRegistry
 
-Service discovery and distributed config/variable storage
+[![Build Status](https://github.com/demdxx/cloudregistry/workflows/Tests/badge.svg)](https://github.com/demdxx/cloudregistry/actions?workflow=Tests)
+[![Go Report Card](https://goreportcard.com/badge/github.com/demdxx/cloudregistry)](https://goreportcard.com/report/github.com/demdxx/cloudregistry)
+[![GoDoc](https://godoc.org/github.com/demdxx/cloudregistry?status.svg)](https://godoc.org/github.com/demdxx/cloudregistry)
+[![Coverage Status](https://coveralls.io/repos/github/demdxx/cloudregistry/badge.svg)](https://coveralls.io/github/demdxx/cloudregistry)
+
+CloudRegistry is a versatile Go package designed to facilitate interaction with various cloud service registries. Currently supporting **etcd**, with plans to integrate **Consul** and **ZooKeeper**, CloudRegistry provides a unified interface for service registration, discovery, and health monitoring.
+
+## Features
+
+- **Service Registration & Deregistration**: Easily register and deregister services in your chosen cloud registry.
+- **Service Discovery**: Discover available services with support for TTL-based caching.
+- **Health Checks**: Implement health checks to ensure service reliability.
+- **Flexible Backend Support**: Currently supports etcd with upcoming support for Consul and ZooKeeper.
+- **Subscription Mechanism**: Subscribe to value changes with or without prefixes.
+
+## Supported Registries
+
+- **etcd** *(Supported)*
+- **Consul** *(Planned)*
+- **ZooKeeper** *(Planned)*
+
+## Installation
+
+To install CloudRegistry, use `go get`:
+
+```bash
+go get github.com/demdxx/cloudregistry
+```
+
+## Usage
+
+### Importing the Package
+
+```go
+import "github.com/demdxx/cloudregistry"
+```
+
+### Initializing the Registry
+
+```go
+import (
+    "context"
+    "log"
+    "time"
+
+    "github.com/demdxx/cloudregistry"
+    "github.com/demdxx/cloudregistry/etcd"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // Initialize etcd registry
+    registry, err := etcd.Connect(ctx, etcd.WithURI("localhost:2379"))
+    if err != nil {
+        log.Fatalf("Failed to initialize etcd registry: %v", err)
+    }
+    defer registry.Close()
+
+    // Example service registration
+    service := &cloudregistry.Service{
+        Name:       "example-service",
+        InstanceID: cloudregistry.GenerateInstanceID("example-service"),
+        Hostname:   "localhost",
+        Port:       8080,
+        Public: []cloudregistry.Host{
+            {
+                Hostname: "localhost",
+                Ports: cloudregistry.Ports{
+                    "http": "80",
+                },
+            },
+        },
+        Check: cloudregistry.Check{
+            ID:  "service-check",
+            TTL: 30 * time.Second,
+        },
+    }
+
+    if err := registry.Register(ctx, service); err != nil {
+        log.Fatalf("Failed to register service: %v", err)
+    }
+
+    // Discover services
+    services, err := registry.Discover(ctx, "example-service", 60*time.Second)
+    if err != nil {
+        log.Fatalf("Failed to discover services: %v", err)
+    }
+
+    for _, svc := range services {
+        log.Printf("Discovered service: %s at %s:%d", svc.Name, svc.Hostname, svc.Port)
+    }
+
+    // Perform health check
+    if err := registry.HealthCheck(ctx, service.Name, service.InstanceID, 30*time.Second); err != nil {
+        log.Fatalf("Health check failed: %v", err)
+    }
+}
+```
+
+### Interfaces and Types
+
+#### `Registry` Interface
+
+Provides methods for service registration, deregistration, discovery, and health checks.
+
+```go
+type Registry interface {
+    io.Closer
+    ValueClient
+    Register(ctx context.Context, service *Service) error
+    Deregister(ctx context.Context, name, id string) error
+    Discover(ctx context.Context, name string, TTL time.Duration) ([]*ServiceInfo, error)
+    HealthCheck(ctx context.Context, name, id string, TTL time.Duration) error
+}
+```
+
+#### `ValueClient` Interface
+
+Handles key-value interactions with the registry.
+
+```go
+type ValueClient interface {
+    Values(ctx context.Context, prefix ...string) ValueClient
+    Value(ctx context.Context, name string) (string, error)
+    SetValue(ctx context.Context, name, value string) error
+    SubscribeValue(ctx context.Context, name string, val ValueSetter) error
+    SubscribeValueWithPrefix(ctx context.Context, prefix string, val ValueSetter) error
+}
+```
+
+#### Helper Functions
+
+- `GenerateInstanceID(serviceName string) string`: Generates a pseudo-random service instance identifier.
+
+```go
+func GenerateInstanceID(serviceName string) string {
+    return fmt.Sprintf("%s-%d", serviceName, rand.New(rand.NewSource(time.Now().UnixNano())).Int())
+}
+```
+
+## Contributing
+
+Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.
+
+### TODO
+
+- **Consul Support**: Implement Consul backend integration.
+- **ZooKeeper Support**: Implement ZooKeeper backend integration.
+- **Additional Features**: Expand subscription mechanisms and enhance error handling.
 
 ## License
 
