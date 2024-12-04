@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/demdxx/cloudregistry"
+	"github.com/demdxx/cloudregistry/consul"
 	"github.com/demdxx/cloudregistry/etcd"
 )
 
@@ -43,6 +44,8 @@ func main() {
 	// Register a service
 	service := &cloudregistry.Service{
 		Name:       "example",
+		Namespace:  "",
+		Partition:  "",
 		InstanceID: cloudregistry.GenerateInstanceID("example"),
 		Hostname:   "localhost",
 		Port:       8080,
@@ -59,11 +62,19 @@ func main() {
 		return
 	}
 
+	// Deregister the service
+	defer func() {
+		fmt.Println("Deregister service:", service.Name)
+		if err := registry.Deregister(context.Background(), service.ID()); err != nil {
+			log.Println("Deregister service", err)
+		}
+	}()
+
 	// Subscribe to the value changes
 	fmt.Println("Subscribe to the value changes")
 	registry.SubscribeValueWithPrefix(ctx, "example/",
 		cloudregistry.ValueSetterFunc(func(key string, value any) error {
-			services, _ := registry.Discover(ctx, "example", 10*time.Second)
+			services, _ := registry.Discover(ctx, service.Prefix(), 10*time.Second)
 			fmt.Printf("Service discovered: %d\n", len(services))
 			fmt.Printf("Value changed: %s = %s\n", key, value)
 			return nil
@@ -91,6 +102,8 @@ func connectRegistry(ctx context.Context, conn string) (cloudregistry.Registry, 
 	switch {
 	case strings.HasPrefix(conn, "etcd://"):
 		return etcd.Connect(ctx, etcd.WithURI(conn))
+	case strings.HasPrefix(conn, "consul://"):
+		return consul.Connect(ctx, consul.WithURI(conn))
 	default:
 		return nil, errors.New("unsupported registry connection string")
 	}

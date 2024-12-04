@@ -42,9 +42,9 @@ type Registry interface {
 	// Register registers a service in the cloud registry.
 	Register(ctx context.Context, service *Service) error
 	// Deregister deregisters a service from the cloud registry.
-	Deregister(ctx context.Context, name, id string) error
+	Deregister(ctx context.Context, id *ServiceID) error
 	// Discover discovers a service in the cloud registry.
-	Discover(ctx context.Context, name string, TTL time.Duration) ([]*ServiceInfo, error)
+	Discover(ctx context.Context, prefix *ServicePrefix, TTL time.Duration) ([]*ServiceInfo, error)
 	// HealthCheck checks the health of a service in the cloud registry.
-	HealthCheck(ctx context.Context, name, id string, TTL time.Duration) error
+	HealthCheck(ctx context.Context, id *ServiceID, TTL time.Duration) error
 }

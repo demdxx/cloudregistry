@@ -21,11 +21,14 @@ type valueWatcherWrapper struct {
 
 // Registry is the etcd registry implementation.
 type Registry struct {
-	watcherSync sync.Once
-	cli         *clientv3.Client
-	prefix      string
-	watchers    chan *valueWatcherWrapper
-	isChild     bool
+	watcherWg   sync.WaitGroup
+	watcherOnce sync.Once
+	done        chan struct{}
+
+	cli      *clientv3.Client
+	prefix   string
+	watchers chan *valueWatcherWrapper
+	parent   *Registry
 }
 
 // Connect connects to the cloud registry.
@@ -48,6 +51,7 @@ func Connect(ctx context.Context, options ...Option) (*Registry, error) {
 func NewRegistry(cli *clientv3.Client) *Registry {
 	return &Registry{
 		cli:      cli,
+		done:     make(chan struct{}, 1),
 		watchers: make(chan *valueWatcherWrapper, 100),
 	}
 }
@@ -79,8 +83,7 @@ func (r *Registry) Register(ctx context.Context, service *cloudregistry.Service)
 	}
 
 	// Put the service data into etcd under the key with the lease
-	_, err = r.cli.Put(ctx,
-		servicePathKey(service.Name, service.InstanceID),
+	_, err = r.cli.Put(ctx, service.ID().String(),
 		string(data), clientv3.WithLease(leaseResp.ID))
 	if err != nil {
 		return err
@@ -97,6 +100,8 @@ func (r *Registry) Register(ctx context.Context, service *cloudregistry.Service)
 			select {
 			case <-ctx.Done():
 				return
+			case <-r.done:
+				return
 			case _, ok := <-ch:
 				if !ok {
 					// KeepAlive channel closed
@@ -110,16 +115,15 @@ func (r *Registry) Register(ctx context.Context, service *cloudregistry.Service)
 }
 
 // Deregister deregisters a service from the cloud registry.
-func (r *Registry) Deregister(ctx context.Context, name, id string) error {
-	_, err := r.cli.Delete(ctx, servicePathKey(name, id))
+func (r *Registry) Deregister(ctx context.Context, id *cloudregistry.ServiceID) error {
+	_, err := r.cli.Delete(ctx, id.String())
 	return err
 }
 
 // Discover discovers a service in the cloud registry.
-func (r *Registry) Discover(ctx context.Context, name string, TTL time.Duration) ([]*cloudregistry.ServiceInfo, error) {
+func (r *Registry) Discover(ctx context.Context, prefix *cloudregistry.ServicePrefix, TTL time.Duration) ([]*cloudregistry.ServiceInfo, error) {
 	// Get all keys under the service name
-	prefix := servicePrefix(name)
-	resp, err := r.cli.Get(ctx, prefix, clientv3.WithPrefix())
+	resp, err := r.cli.Get(ctx, prefix.String(), clientv3.WithPrefix())
 	if err != nil {
 		return nil, err
 	}
@@ -143,11 +147,9 @@ func (r *Registry) Discover(ctx context.Context, name string, TTL time.Duration)
 }
 
 // HealthCheck checks the health of a service in the cloud registry.
-func (r *Registry) HealthCheck(ctx context.Context, name, id string, TTL time.Duration) error {
-	key := servicePathKey(name, id)
-
+func (r *Registry) HealthCheck(ctx context.Context, id *cloudregistry.ServiceID, TTL time.Duration) error {
 	// Retrieve the lease ID associated with the service key
-	resp, err := r.cli.Get(ctx, key, clientv3.WithKeysOnly())
+	resp, err := r.cli.Get(ctx, id.String(), clientv3.WithKeysOnly())
 	if err != nil {
 		return err
 	}
@@ -178,10 +180,11 @@ func (r *Registry) HealthCheck(ctx context.Context, name, id string, TTL time.Du
 func (r *Registry) Values(ctx context.Context, prefix ...string) cloudregistry.ValueClient {
 	if len(prefix) > 0 {
 		return &Registry{
+			done:     r.done,
 			cli:      r.cli,
 			prefix:   r.prefix + prefix[0],
 			watchers: r.watchers,
-			isChild:  true,
+			parent:   r,
 		}
 	}
 	return r
@@ -218,19 +221,24 @@ func (r *Registry) SubscribeValueWithPrefix(ctx context.Context, prefix string, 
 }
 
 func (r *Registry) subscriveValue(watcher clientv3.WatchChan, val cloudregistry.ValueSetter) error {
-	r.watchers <- &valueWatcherWrapper{value: val, watcher: watcher}
-	if !r.isChild {
-		r.watcherSync.Do(func() {
-			go r.valueWatcher(r.cli.Ctx())
-		})
+	if r.parent != nil {
+		return r.parent.subscriveValue(watcher, val)
 	}
+	r.watchers <- &valueWatcherWrapper{value: val, watcher: watcher}
+	r.watcherOnce.Do(func() {
+		r.watcherWg.Add(1)
+		go r.valueWatcher(r.cli.Ctx())
+	})
 	return nil
 }
 
 func (r *Registry) valueWatcher(ctx context.Context) {
+	defer r.watcherWg.Done()
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-r.done:
 			return
 		case wr, ok := <-r.watchers:
 			if !ok {
@@ -247,15 +255,29 @@ func (r *Registry) valueWatcher(ctx context.Context) {
 					}
 				}
 			}
-			r.watchers <- wr
+			select {
+			case <-ctx.Done():
+				return
+			case <-r.done:
+				return
+			default:
+				r.watchers <- wr
+			}
 		}
 	}
 }
 
+// Close closes the cloud registry connection.
 func (r *Registry) Close() (err error) {
-	if r.cli != nil {
-		err = r.cli.Close()
-		r.cli = nil
-	}
-	return err
+	// Signal the watcher to stop
+	r.done <- struct{}{}
+
+	// Close the watchers channel to signal watchers to stop
+	close(r.watchers)
+
+	// Wait for all watchers to finish
+	r.watcherWg.Wait()
+
+	// Close the etcd client
+	return r.cli.Close()
 }
