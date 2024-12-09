@@ -2,9 +2,17 @@ module app
 
 go 1.23
 
-replace github.com/demdxx/cloudregistry => ../
+replace (
+	github.com/demdxx/cloudregistry => ../
+	github.com/demdxx/cloudregistry/consul => ../consul
+	github.com/demdxx/cloudregistry/etcd => ../etcd
+)
 
-require github.com/demdxx/cloudregistry v0.0.0-00010101000000-000000000000
+require (
+	github.com/demdxx/cloudregistry v0.0.0-00010101000000-000000000000
+	github.com/demdxx/cloudregistry/consul v0.0.0-00010101000000-000000000000
+	github.com/demdxx/cloudregistry/etcd v0.0.0-00010101000000-000000000000
+)
 
 require (
 	github.com/armon/go-metrics v0.4.1 // indirect
@@ -34,12 +42,12 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.17 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
-	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/text v0.20.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20241202173237-19429a94021a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241202173237-19429a94021a // indirect
-	google.golang.org/grpc v1.68.0 // indirect
+	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
+	golang.org/x/net v0.32.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20241206012308-a4fef0638583 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241206012308-a4fef0638583 // indirect
+	google.golang.org/grpc v1.68.1 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 )
