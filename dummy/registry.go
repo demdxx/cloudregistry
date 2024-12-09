@@ -54,3 +54,10 @@ func (r *Registry) SubscribeValue(ctx context.Context, name string, val cloudreg
 func (r *Registry) SubscribeValueWithPrefix(ctx context.Context, prefix string, val cloudregistry.ValueSetter) error {
 	return nil
 }
+
+// Close closes the cloud registry.
+func (r *Registry) Close() error {
+	return nil
+}
+
+var _ cloudregistry.Registry = (*Registry)(nil)
