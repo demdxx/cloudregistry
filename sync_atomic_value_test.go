@@ -1,6 +1,7 @@
 package cloudregistry
 
 import (
+	"fmt"
 	"reflect"
 	"sync/atomic"
 	"testing"
@@ -151,5 +152,141 @@ func TestSyncAtomicValue_String(t *testing.T) {
 				t.Errorf("SyncAtomicValue.Value() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestSyncValue_Value(t *testing.T) {
+	tests := []struct {
+		name string
+		init string
+		want string
+	}{
+		{
+			name: "string value",
+			init: "hello",
+			want: "hello",
+		},
+		{
+			name: "empty string",
+			init: "",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := NewSyncValue(tt.init)
+			if got := v.Value(); got != tt.want {
+				t.Errorf("SyncValue.Value() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSyncValue_SetValue(t *testing.T) {
+	tests := []struct {
+		name     string
+		init     string
+		setValue any
+		want     string
+		wantErr  bool
+	}{
+		{
+			name:     "set string",
+			init:     "initial",
+			setValue: "new_value",
+			want:     "new_value",
+			wantErr:  false,
+		},
+		{
+			name:     "set int to string",
+			init:     "initial",
+			setValue: 42,
+			want:     "42",
+			wantErr:  false,
+		},
+		{
+			name:     "set bool to string",
+			init:     "initial",
+			setValue: true,
+			want:     "true",
+			wantErr:  false,
+		},
+		{
+			name:     "set nil",
+			init:     "initial",
+			setValue: nil,
+			want:     "",
+			wantErr:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := NewSyncValue(tt.init)
+			err := v.SetValue("", tt.setValue)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SyncValue.SetValue() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got := v.Value(); got != tt.want {
+				t.Errorf("SyncValue.Value() after SetValue = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSyncValue_Concurrent(t *testing.T) {
+	v := NewSyncValue("initial")
+	const numGoroutines = 50
+	const numOperations = 100
+
+	// Test concurrent reads and writes
+	done := make(chan bool, numGoroutines*2)
+
+	// Start writers
+	for i := 0; i < numGoroutines; i++ {
+		go func(value string) {
+			for j := 0; j < numOperations; j++ {
+				_ = v.SetValue("", value)
+			}
+			done <- true
+		}(fmt.Sprintf("value-%d", i))
+	}
+
+	// Start readers
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			for j := 0; j < numOperations; j++ {
+				_ = v.Value()
+			}
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines to complete
+	for i := 0; i < numGoroutines*2; i++ {
+		<-done
+	}
+
+	// The final value should be a valid string
+	finalValue := v.Value()
+	if finalValue == "" {
+		t.Error("Final value should not be empty after concurrent operations")
+	}
+}
+
+func TestSyncValue_Interface(t *testing.T) {
+	// Test that SyncValue implements Valuer interface
+	var v Valuer[string] = NewSyncValue("test")
+
+	if got := v.Value(); got != "test" {
+		t.Errorf("SyncValue as Valuer[string].Value() = %v, want %v", got, "test")
+	}
+
+	if err := v.SetValue("test", "new_value"); err != nil {
+		t.Errorf("SyncValue as Valuer[string].SetValue() error = %v", err)
+	}
+
+	if got := v.Value(); got != "new_value" {
+		t.Errorf("SyncValue as Valuer[string].Value() after SetValue = %v, want %v", got, "new_value")
 	}
 }
