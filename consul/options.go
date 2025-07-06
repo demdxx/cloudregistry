@@ -24,8 +24,8 @@ func WithURI(uri string) Option {
 			panic(err)
 		}
 		schema := urlObj.Scheme
-		if strings.HasPrefix(schema, "consul+") {
-			schema = strings.TrimPrefix(schema, "consul+")
+		if after, ok := strings.CutPrefix(schema, "consul+"); ok {
+			schema = after
 		} else if schema == "consul" {
 			schema = "http"
 		} else if schema == "consuls" {

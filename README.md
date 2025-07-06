@@ -18,8 +18,8 @@ CloudRegistry is a versatile Go package designed to facilitate interaction with 
 ## Supported Registries
 
 - **etcd** *(Supported)*
-- **Consul** *(Planned)*
-- **ZooKeeper** *(Planned)*
+- **Consul** *(Supported)*
+- **ZooKeeper** *(Supported)*
 
 ## Installation
 
@@ -47,17 +47,36 @@ import (
 
     "github.com/demdxx/cloudregistry"
     "github.com/demdxx/cloudregistry/etcd"
+    "github.com/demdxx/cloudregistry/consul"
+    "github.com/demdxx/cloudregistry/zookeeper"
 )
 
 func main() {
     ctx := context.Background()
 
     // Initialize etcd registry
-    registry, err := etcd.Connect(ctx, etcd.WithURI("localhost:2379"))
+    etcdRegistry, err := etcd.Connect(ctx, etcd.WithURI("etcd://localhost:2379"))
     if err != nil {
         log.Fatalf("Failed to initialize etcd registry: %v", err)
     }
-    defer registry.Close()
+    defer etcdRegistry.Close()
+
+    // Initialize Consul registry
+    consulRegistry, err := consul.Connect(ctx, consul.WithURI("consul://localhost:8500"))
+    if err != nil {
+        log.Fatalf("Failed to initialize consul registry: %v", err)
+    }
+    defer consulRegistry.Close()
+
+    // Initialize ZooKeeper registry
+    zkRegistry, err := zookeeper.Connect(ctx, zookeeper.WithURI("zk://localhost:2181"))
+    if err != nil {
+        log.Fatalf("Failed to initialize zookeeper registry: %v", err)
+    }
+    defer zkRegistry.Close()
+
+    // Use any registry (they all implement the same interface)
+    registry := etcdRegistry // or consulRegistry or zkRegistry
 
     // Example service registration
     service := &cloudregistry.Service{
@@ -147,9 +166,9 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 
 ### TODO
 
-- **Consul Support**: Implement Consul backend integration.
-- **ZooKeeper Support**: Implement ZooKeeper backend integration.
-- **Additional Features**: Expand subscription mechanisms and enhance error handling.
+- [ ] **Additional Features**: Expand subscription mechanisms and enhance error handling.
+- [ ] **Performance Optimizations**: Implement connection pooling and caching strategies.
+- [ ] **Monitoring**: Add metrics and health check endpoints.
 
 ## License
 

@@ -14,6 +14,7 @@ import (
 	"github.com/demdxx/cloudregistry"
 	"github.com/demdxx/cloudregistry/consul"
 	"github.com/demdxx/cloudregistry/etcd"
+	"github.com/demdxx/cloudregistry/zookeeper"
 )
 
 func main() {
@@ -104,6 +105,9 @@ func connectRegistry(ctx context.Context, conn string) (cloudregistry.Registry, 
 		return etcd.Connect(ctx, etcd.WithURI(conn))
 	case strings.HasPrefix(conn, "consul://"):
 		return consul.Connect(ctx, consul.WithURI(conn))
+	case strings.HasPrefix(conn, "zookeeper://"), strings.HasPrefix(conn, "zk://"):
+		// Use the new WithURI option for ZooKeeper
+		return zookeeper.Connect(ctx, zookeeper.WithURI(conn))
 	default:
 		return nil, errors.New("unsupported registry connection string")
 	}

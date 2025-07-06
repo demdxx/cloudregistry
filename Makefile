@@ -9,7 +9,7 @@ tidy: ## Run go mod tidy
 	go mod tidy
 	cd etcd && go mod tidy
 	cd consul && go mod tidy
-	# cd zookeeper && go mod tidy
+	cd zookeeper && go mod tidy
 	cd example && go mod tidy
 
 .PHONY: test

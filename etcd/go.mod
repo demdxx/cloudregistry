@@ -1,12 +1,14 @@
 module github.com/demdxx/cloudregistry/etcd
 
-go 1.23
+go 1.23.0
+
+toolchain go1.24.4
 
 replace github.com/demdxx/cloudregistry => ../
 
 require (
 	github.com/demdxx/cloudregistry v0.0.0-00010101000000-000000000000
-	github.com/demdxx/gocast/v2 v2.9.0
+	github.com/demdxx/gocast/v2 v2.10.1
 	github.com/demdxx/xtypes v0.2.0
 	github.com/pkg/errors v0.9.1
 	go.etcd.io/etcd/api/v3 v3.5.17
@@ -22,7 +24,7 @@ require (
 	go.etcd.io/etcd/client/pkg/v3 v3.5.17 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
+	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

@@ -50,6 +50,8 @@ jobs:
         go-version: ${{ matrix.go-version }}
     - name: Checkout code
       uses: actions/checkout@v4
+    - name: Run tests zookeeper
+      run: cd zookeeper && go test -v -covermode=count
     - name: Run tests
       run: go test -v -covermode=count
 
