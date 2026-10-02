@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,16 +70,65 @@ func (r *Registry) Register(ctx context.Context, service *cloudregistry.Service)
 		Port:      service.Port,
 		Tags:      service.Tags,
 		Meta:      service.Meta,
-		Check: &api.AgentServiceCheck{
-			CheckID:                        service.Check.ID,
-			TTL:                            fmt.Sprintf("%ds", int(service.Check.TTL.Seconds())),
-			DeregisterCriticalServiceAfter: fmt.Sprintf("%ds", int(service.Check.TTL.Seconds()*3)),
-			HTTP:                           service.Check.HTTP.URL,
-			Method:                         service.Check.HTTP.Method,
-			Header:                         service.Check.HTTP.Headers,
-		},
+		Check:     agentServiceCheck(service),
 	}
 	return r.client.Agent().ServiceRegister(reg)
+}
+
+// agentServiceCheck builds a Consul agent check. HTTP and TTL are mutually
+// exclusive: a non-empty HTTP URL is an interval HTTP check (Check.TTL is the
+// poll interval), otherwise a positive TTL is a TTL check. A relative URL is
+// probed on the local agent, not the advertised service hostname.
+func agentServiceCheck(service *cloudregistry.Service) *api.AgentServiceCheck {
+	if service.Check.HTTP.URL != "" {
+		interval := service.Check.TTL
+		if interval <= 0 {
+			interval = 10 * time.Second
+		}
+		return &api.AgentServiceCheck{
+			CheckID:                        service.Check.ID,
+			HTTP:                           consulHTTPCheckURL(service.Check.HTTP.URL, service.Port),
+			Method:                         service.Check.HTTP.Method,
+			Header:                         service.Check.HTTP.Headers,
+			Interval:                       durationSeconds(interval),
+			Timeout:                        durationSeconds(httpCheckTimeout(interval)),
+			DeregisterCriticalServiceAfter: durationSeconds(interval * 3),
+		}
+	}
+	if service.Check.TTL > 0 {
+		return &api.AgentServiceCheck{
+			CheckID:                        service.Check.ID,
+			TTL:                            durationSeconds(service.Check.TTL),
+			DeregisterCriticalServiceAfter: durationSeconds(service.Check.TTL * 3),
+		}
+	}
+	return nil
+}
+
+func consulHTTPCheckURL(raw string, port int) string {
+	if strings.Contains(raw, "://") {
+		return raw
+	}
+	path := raw
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d%s", port, path)
+}
+
+func httpCheckTimeout(interval time.Duration) time.Duration {
+	timeout := 5 * time.Second
+	if timeout >= interval {
+		timeout = interval / 2
+	}
+	if timeout < time.Second {
+		timeout = time.Second
+	}
+	return timeout
+}
+
+func durationSeconds(d time.Duration) string {
+	return fmt.Sprintf("%ds", int(d.Seconds()))
 }
 
 // Deregister deregisters a service from the Consul cloud registry.
